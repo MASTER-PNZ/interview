@@ -1,5 +1,18 @@
 # Playwright Automation Framework Exercise
 
+## Getting Started
+1. Fork the repository
+2. Clone it locally
+3. Navigate to the `qa` directory
+   ```bash
+   cd qa
+   ```
+4. Install dependencies
+   ```bash
+   npm install
+   ```
+
+
 ## Testing Website
 https://automationintesting.online/
 
@@ -111,14 +124,4 @@ Your pull request should include:
 
 ## Interview Discussion
 
-During the interview, we will ask you to walk through your solution using the code you wrote.
-
-Be prepared to:
-- Explain how your framework is structured and show where new tests would be added
-- Walk through how setup, fixtures, and authentication work in your implementation
-- Show how test state is created, reused, and isolated
-- Explain why you chose the test scenarios you automated and what you intentionally left out
-- Demonstrate how your tests handle waiting and avoid flake
-- Walk through how you would debug a failing test using the artifacts your framework produces
-- Explain how this would run in CI and what changes you would make for scale
-
+This is where your work comes to life. During the interview, you’ll walk us through your solution using the code you wrote and talk through your approach, decisions, and assumptions. We’re excited to understand how you think, not just what you built, so come ready to explain your reasoning and explore what you might improve with more time.
