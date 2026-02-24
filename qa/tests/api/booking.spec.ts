@@ -20,7 +20,7 @@ test.afterEach(async ({ request }) => {
 });
 
 test('API: create, get, and delete booking', async ({ request, browserName }) => {
-  const dateOffset = browserName === 'firefox' ? 340 : 320;
+  const dateOffset = browserName === 'firefox' ? 640 : 620;
   const payload = buildBookingPayload({ dateOffset, roomid: 3 });
 
   const created = await createBooking(request, payload);

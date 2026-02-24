@@ -4,6 +4,13 @@ import { deleteBooking, loginAsAdmin } from '../helpers/booking-api';
 
 let createdBookingIds: number[] = [];
 
+const getReserveNowButton = (page: import('@playwright/test').Page) =>
+  page.getByRole('button', { name: 'Reserve Now' });
+const getInitialReserveNowButton = (page: import('@playwright/test').Page) =>
+  page.locator('#doReservation');
+const getSubmitReserveNowButton = (page: import('@playwright/test').Page) =>
+  getReserveNowButton(page);
+
 test.afterEach(async ({ request }) => {
   if (createdBookingIds.length === 0) return;
 
@@ -22,10 +29,10 @@ const openReservation = async (page: import('@playwright/test').Page, dateOffset
   const bookingSection = page.locator('#booking');
   await expect(bookingSection).toBeVisible();
 
-  const dateInputs = bookingSection.locator('input.form-control');
-  await dateInputs.nth(0).fill(formatUiDate(checkinDate));
-  await dateInputs.nth(1).fill(formatUiDate(checkoutDate));
-  await bookingSection.getByRole('button', { name: /check availability/i }).click();
+  // Labels aren't programmatically associated with inputs (getByLabel fails), so we anchor on visible label text within #booking.
+  await bookingSection.locator('div:has(> label:has-text("Check In")) input').fill(formatUiDate(checkinDate));
+  await bookingSection.locator('div:has(> label:has-text("Check Out")) input').fill(formatUiDate(checkoutDate));
+  await bookingSection.getByRole('button', { name: 'Check Availability' }).click();
 
   const firstAvailableRoom = page.locator('a[href*="/reservation/"]').first();
   await firstAvailableRoom.waitFor({ state: 'visible', timeout: 10_000 });
@@ -35,103 +42,115 @@ const openReservation = async (page: import('@playwright/test').Page, dateOffset
 };
 
 test('UI: booking happy path', async ({ page, browserName }) => {
-  const dateOffset = browserName === 'firefox' ? 300 : 280;
+  const dateOffset = browserName === 'firefox' ? 520 : 500;
   const { checkinDate, checkoutDate } = await openReservation(page, dateOffset);
 
-  const reserveNowButton = page.getByRole('button', { name: /^Reserve Now$/i });
-  await reserveNowButton.click();
+  const openReservationButton = getInitialReserveNowButton(page);
+  await openReservationButton.click();
 
-  await page.locator('input[name="firstname"]').fill('Alicia');
-  await page.locator('input[name="lastname"]').fill('Testerson');
-  await page.locator('input[name="email"]').fill(`alicia.${Date.now()}@example.com`);
+  await page.locator('input[name="firstname"]').fill('John');
+  await page.locator('input[name="lastname"]').fill('Coltrane');
+  await page.locator('input[name="email"]').fill(`John.Coltrane${Date.now()}@example.com`);
   await page.locator('input[name="phone"]').fill('01234567890');
+  const submitReservationButton = getSubmitReserveNowButton(page);
 
   const bookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
     { timeout: 15_000 }
   );
 
-  await reserveNowButton.click();
+  await submitReservationButton.click();
   const bookingResponse = await bookingResponsePromise;
-  expect(bookingResponse.status()).toBe(201);
+  const confirmedRange = `${formatApiDate(checkinDate)} - ${formatApiDate(checkoutDate)}`;
+  expect(
+    bookingResponse.status(),
+    `Booking POST returned ${bookingResponse.status()} for ${confirmedRange} at ${page.url()}. Shared env collision likely; try bumping base date offset.`
+  ).toBe(201);
 
   const bookingBody = (await bookingResponse.json()) as { bookingid: number };
   createdBookingIds.push(bookingBody.bookingid);
 
-  await expect(page.getByRole('heading', { name: /booking confirmed/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Booking Confirmed' })).toBeVisible();
   await expect(page.getByText('Your booking has been confirmed for the following dates:')).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Return Home' })).toBeVisible();
 
-  const confirmedRange = `${formatApiDate(checkinDate)} - ${formatApiDate(checkoutDate)}`;
   await expect(page.getByText(confirmedRange)).toBeVisible();
 });
 
 test('UI: validation error when guest names are too short', async ({ page, browserName }) => {
-  const dateOffset = browserName === 'firefox' ? 220 : 200;
+  const dateOffset = browserName === 'firefox' ? 560 : 540;
   await openReservation(page, dateOffset);
 
-  const reserveNowButton = page.getByRole('button', { name: /^Reserve Now$/i });
-  await reserveNowButton.click();
+  const openReservationButton = getInitialReserveNowButton(page);
+  await openReservationButton.click();
 
-  await page.locator('input[name="firstname"]').fill('Al');
-  await page.locator('input[name="lastname"]').fill('Te');
+  await page.locator('input[name="firstname"]').fill('PK');
+  await page.locator('input[name="lastname"]').fill('QA');
   await page.locator('input[name="email"]').fill('invalid.names@example.com');
   await page.locator('input[name="phone"]').fill('01234567890');
+  const submitReservationButton = getSubmitReserveNowButton(page);
 
   const invalidBookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
     { timeout: 15_000 }
   );
 
-  await reserveNowButton.click();
+  await submitReservationButton.click();
   const invalidBookingResponse = await invalidBookingResponsePromise;
 
   expect(invalidBookingResponse.status()).toBe(400);
+  // Both first and last name have displayed validation errors, but we just check for one to keep the test simpler
   await expect(page.getByText('size must be between 3 and 18')).toBeVisible();
-  await expect(page.getByText(/booking confirmed/i)).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Booking Confirmed' })).not.toBeVisible();
 });
 
 test('UI: prevents double-booking for the same room and date range', async ({ page, browserName }) => {
-  const dateOffset = browserName === 'firefox' ? 260 : 240;
+  const dateOffset = browserName === 'firefox' ? 600 : 580;
   await openReservation(page, dateOffset);
 
   const reservationUrl = page.url();
-  const reserveNowButton = page.getByRole('button', { name: /^Reserve Now$/i });
-  await reserveNowButton.click();
+  const firstOpenReservationButton = getInitialReserveNowButton(page);
+  await firstOpenReservationButton.click();
 
-  await page.locator('input[name="firstname"]').fill('FirstBooker');
-  await page.locator('input[name="lastname"]').fill('LastBooker');
-  await page.locator('input[name="email"]').fill(`first.booker.${Date.now()}@example.com`);
+  await page.locator('input[name="firstname"]').fill('John');
+  await page.locator('input[name="lastname"]').fill('Coltrane');
+  await page.locator('input[name="email"]').fill(`John.Coltrane${Date.now()}@example.com`);
   await page.locator('input[name="phone"]').fill('01234567890');
+  const submitFirstReservationButton = getSubmitReserveNowButton(page);
 
   const firstBookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
     { timeout: 15_000 }
   );
 
-  await reserveNowButton.click();
+  await submitFirstReservationButton.click();
   const firstBookingResponse = await firstBookingResponsePromise;
-  expect(firstBookingResponse.status()).toBe(201);
+  expect(
+    firstBookingResponse.status(),
+    `First booking POST returned ${firstBookingResponse.status()} at ${reservationUrl}. Shared env collision likely; try bumping base date offset.`
+  ).toBe(201);
 
   const firstBookingBody = (await firstBookingResponse.json()) as { bookingid: number };
   createdBookingIds.push(firstBookingBody.bookingid);
-  await expect(page.getByRole('heading', { name: /booking confirmed/i })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Booking Confirmed' })).toBeVisible();
 
   await page.goto(reservationUrl);
 
-  const secondReserveNowButton = page.getByRole('button', { name: /^Reserve Now$/i });
-  await secondReserveNowButton.click();
-  await page.locator('input[name="firstname"]').fill('SecondBooker');
-  await page.locator('input[name="lastname"]').fill('LastBooker');
-  await page.locator('input[name="email"]').fill(`second.booker.${Date.now()}@example.com`);
+  const secondOpenReservationButton = getInitialReserveNowButton(page);
+  await secondOpenReservationButton.click();
+  await page.locator('input[name="firstname"]').fill('Charlie');
+  await page.locator('input[name="lastname"]').fill('Parker');
+  await page.locator('input[name="email"]').fill(`Charlie.Parker${Date.now()}@example.com`);
   await page.locator('input[name="phone"]').fill('01234567890');
+  const submitSecondReservationButton = getSubmitReserveNowButton(page);
 
   const secondBookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
     { timeout: 15_000 }
   );
 
-  await secondReserveNowButton.click();
+  await submitSecondReservationButton.click();
   const secondBookingResponse = await secondBookingResponsePromise;
   expect(secondBookingResponse.status()).toBe(409);
-  await expect(page.getByRole('heading', { name: /booking confirmed/i })).not.toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Booking Confirmed' })).not.toBeVisible();
 });

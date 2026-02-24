@@ -35,14 +35,14 @@ export const buildBookingPayload = (options?: {
 
   return {
     roomid: options?.roomid ?? 1,
-    firstname: options?.firstname ?? 'ApiFirst',
-    lastname: options?.lastname ?? 'ApiLast',
+    firstname: options?.firstname ?? 'PKQA',
+    lastname: options?.lastname ?? 'QATest',
     depositpaid: false,
     bookingdates: {
       checkin: formatApiDate(checkinDate),
       checkout: formatApiDate(checkoutDate),
     },
-    email: options?.email ?? `api.${Date.now()}@example.com`,
+    email: options?.email ?? `pk.${Date.now()}@example.com`,
     phone: options?.phone ?? '01234567890',
   };
 };
@@ -52,7 +52,10 @@ export const createBooking = async (
   payload: BookingPayload
 ): Promise<{ bookingid: number; roomid: number }> => {
   const createResponse = await request.post('/api/booking', { data: payload });
-  expect(createResponse.status()).toBe(201);
+  expect(
+    createResponse.status(),
+    `Booking POST returned ${createResponse.status()} for room ${payload.roomid} on ${payload.bookingdates.checkin} -> ${payload.bookingdates.checkout}. Shared env collision likely; try bumping base date offset.`
+  ).toBe(201);
   return createResponse.json();
 };
 
