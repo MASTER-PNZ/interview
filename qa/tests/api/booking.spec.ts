@@ -20,8 +20,10 @@ test.afterEach(async ({ request }) => {
 });
 
 test('API: create, get, and delete booking', async ({ request, browserName }) => {
-  const dateOffset = browserName === 'firefox' ? 640 : 620;
-  const payload = buildBookingPayload({ dateOffset, roomid: 3 });
+  // Deterministic browser-specific room/date mapping reduces shared-environment booking collisions.
+  const roomid = browserName === 'firefox' ? 2 : 1;
+  const dateOffset = browserName === 'firefox' ? 700 : 680;
+  const payload = buildBookingPayload({ dateOffset, roomid });
 
   const created = await createBooking(request, payload);
   createdBookingIds.push(created.bookingid);

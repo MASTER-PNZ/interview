@@ -6,10 +6,8 @@ let createdBookingIds: number[] = [];
 
 const getReserveNowButton = (page: import('@playwright/test').Page) =>
   page.getByRole('button', { name: 'Reserve Now' });
-const getInitialReserveNowButton = (page: import('@playwright/test').Page) =>
+const getOpenReservationButton = (page: import('@playwright/test').Page) =>
   page.locator('#doReservation');
-const getSubmitReserveNowButton = (page: import('@playwright/test').Page) =>
-  getReserveNowButton(page);
 
 test.afterEach(async ({ request }) => {
   if (createdBookingIds.length === 0) return;
@@ -45,14 +43,14 @@ test('UI: booking happy path', async ({ page, browserName }) => {
   const dateOffset = browserName === 'firefox' ? 520 : 500;
   const { checkinDate, checkoutDate } = await openReservation(page, dateOffset);
 
-  const openReservationButton = getInitialReserveNowButton(page);
+  const openReservationButton = getOpenReservationButton(page);
   await openReservationButton.click();
 
   await page.locator('input[name="firstname"]').fill('John');
   await page.locator('input[name="lastname"]').fill('Coltrane');
   await page.locator('input[name="email"]').fill(`John.Coltrane${Date.now()}@example.com`);
   await page.locator('input[name="phone"]').fill('01234567890');
-  const submitReservationButton = getSubmitReserveNowButton(page);
+  const submitReservationButton = getReserveNowButton(page);
 
   const bookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
@@ -81,14 +79,14 @@ test('UI: validation error when guest names are too short', async ({ page, brows
   const dateOffset = browserName === 'firefox' ? 560 : 540;
   await openReservation(page, dateOffset);
 
-  const openReservationButton = getInitialReserveNowButton(page);
+  const openReservationButton = getOpenReservationButton(page);
   await openReservationButton.click();
 
   await page.locator('input[name="firstname"]').fill('PK');
   await page.locator('input[name="lastname"]').fill('QA');
   await page.locator('input[name="email"]').fill('invalid.names@example.com');
   await page.locator('input[name="phone"]').fill('01234567890');
-  const submitReservationButton = getSubmitReserveNowButton(page);
+  const submitReservationButton = getReserveNowButton(page);
 
   const invalidBookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
@@ -109,14 +107,14 @@ test('UI: prevents double-booking for the same room and date range', async ({ pa
   await openReservation(page, dateOffset);
 
   const reservationUrl = page.url();
-  const firstOpenReservationButton = getInitialReserveNowButton(page);
+  const firstOpenReservationButton = getOpenReservationButton(page);
   await firstOpenReservationButton.click();
 
   await page.locator('input[name="firstname"]').fill('John');
   await page.locator('input[name="lastname"]').fill('Coltrane');
   await page.locator('input[name="email"]').fill(`John.Coltrane${Date.now()}@example.com`);
   await page.locator('input[name="phone"]').fill('01234567890');
-  const submitFirstReservationButton = getSubmitReserveNowButton(page);
+  const submitFirstReservationButton = getReserveNowButton(page);
 
   const firstBookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
@@ -136,14 +134,15 @@ test('UI: prevents double-booking for the same room and date range', async ({ pa
 
   await page.goto(reservationUrl);
 
-  const secondOpenReservationButton = getInitialReserveNowButton(page);
+  const secondOpenReservationButton = getOpenReservationButton(page);
   await secondOpenReservationButton.click();
   await page.locator('input[name="firstname"]').fill('Charlie');
   await page.locator('input[name="lastname"]').fill('Parker');
   await page.locator('input[name="email"]').fill(`Charlie.Parker${Date.now()}@example.com`);
   await page.locator('input[name="phone"]').fill('01234567890');
-  const submitSecondReservationButton = getSubmitReserveNowButton(page);
+  const submitSecondReservationButton = getReserveNowButton(page);
 
+  // Attempt to book the same room and date range again to validate conflict prevention.
   const secondBookingResponsePromise = page.waitForResponse(
     (response) => response.url().includes('/api/booking') && response.request().method() === 'POST',
     { timeout: 15_000 }

@@ -130,9 +130,10 @@ This is where your work comes to life. During the interview, you’ll walk us th
 
 ### High-Level Framework Architecture
 - `playwright.config.ts` contains shared execution defaults and browser projects.
-- `tests/ui/booking.spec.ts` contains two UI scenarios:
+- `tests/ui/booking.spec.ts` contains three UI scenarios:
   - booking happy path
   - booking validation failure
+  - double-booking prevention
 - `tests/api/booking.spec.ts` covers create, get, and delete for bookings.
 - `tests/helpers/date.ts` contains date utilities.
 - `tests/helpers/booking-api.ts` contains API helper functions for auth and booking operations.
@@ -140,7 +141,7 @@ This is where your work comes to life. During the interview, you’ll walk us th
 ### Test File Map
 | File | Layer | Purpose |
 |---|---|---|
-| `tests/ui/booking.spec.ts` | UI | Happy path booking and validation-error scenario. |
+| `tests/ui/booking.spec.ts` | UI | Happy path booking, validation error scenario, and double-booking prevention scenario. |
 | `tests/api/booking.spec.ts` | API | Authenticated create/get/delete booking flow. |
 | `tests/helpers/date.ts` | Helper | Shared date math and UI/API date formatting. |
 | `tests/helpers/booking-api.ts` | Helper | Shared API auth + booking CRUD helpers. |
@@ -150,6 +151,18 @@ This is where your work comes to life. During the interview, you’ll walk us th
 - Booking creation is intentionally fail-fast: single room, single date window, explicit assertion.
 - UI tests use resilient selectors (`role`, input `name`, URL patterns).
 - UI scenarios are validated in Chrome and Firefox.
+- The target site is a shared public environment. Fixed far-future date offsets are used to reduce booking collisions while keeping the tests deterministic and fail-fast.
+
+### Refactoring and Iteration Process
+This solution was built iteratively. I initially scaffolded the Playwright structure and test flows using AI-assisted tooling, then manually explored the application to validate behavior and refine selectors.
+
+During refactoring I intentionally:
+- Removed retry loops and session abstractions that added complexity without improving clarity.
+- Replaced index-based selectors with label-anchored or role-based selectors where possible.
+- Moved repeated UI actions (e.g., `Reserve Now` interactions) into small page-scoped helper functions to reduce duplication without introducing a full page-object layer.
+- Simplified booking creation to a fail-fast model rather than masking collisions with retries.
+
+The final structure reflects deliberate pruning. I preferred transparency and deterministic behavior over defensive abstraction, especially given this is a shared public demo environment.
 
 ### How UI and API Tests Interact
 - UI tests validate complete user workflows and visible confirmation/error behavior.
@@ -192,3 +205,5 @@ npm run test:debug
 - Add API update coverage if environment consistency allows it.
 - Add optional room-availability or concurrency scenarios as non-blocking additional coverage.
 - Add linting/formatting quality gates and a CI matrix.
+- Introduce per-worker test data isolation (for example, room allocation or namespaced date offsets) to safely support parallel execution in a shared environment.
+- Implement Playwright `storageState` session reuse to demonstrate API-authenticated browser context seeding (bonus objective).
